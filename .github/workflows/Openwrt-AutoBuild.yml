@@ -75,7 +75,7 @@ jobs:
             echo "MTARGET=mipsel_24kc" >> $GITHUB_ENV
         elif [[ ${{matrix.target}} == "ath79_nand" ]]; then
             echo "MTARGET=mips_24kc" >> $GITHUB_ENV
-        elif [[ ${{matrix.target}} =~ (ipq40xx_generic|bcm27xx_bcm2709|sunxi_cortexa7|qualcommax_ipq50xx) ]]; then
+        elif [[ ${{matrix.target}} =~ (ipq40xx_generic|bcm27xx_bcm2709|sunxi_cortexa7|qualcommax_ipq50xx|ipq50xx_arm) ]]; then
             echo "MTARGET=arm_cortex-a7_neon-vfpv4" >> $GITHUB_ENV
         elif [[ ${{matrix.target}} == "amlogic_meson8b" ]]; then
             echo "MTARGET=arm_cortex-a5_vfpv4" >> $GITHUB_ENV

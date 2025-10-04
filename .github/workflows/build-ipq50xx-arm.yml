@@ -1,0 +1,268 @@
+#=================================================
+# IPQ50xx ARM 专用构建 Workflow
+# Description: 手动触发，专门编译新增的 IPQ50xx ARM 平台固件
+# Author: Claude Code
+#=================================================
+
+name: Build IPQ50xx ARM Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      free_up_disk:
+        description: '释放磁盘空间'
+        required: false
+        default: 'true'
+        type: boolean
+      upload_release:
+        description: '上传到 Release'
+        required: false
+        default: 'false'
+        type: boolean
+      upload_artifact:
+        description: '上传到 Artifacts'
+        required: false
+        default: 'true'
+        type: boolean
+      upload_wetransfer:
+        description: '上传到 WeTransfer'
+        required: false
+        default: 'true'
+        type: boolean
+      custom_version:
+        description: '自定义版本号 (留空使用默认)'
+        required: false
+        default: ''
+        type: string
+
+env:
+  REPO_TOKEN: ${{ secrets.TOKEN_KIDDIN9 }}
+  PPPOE_USERNAME: ${{ secrets.PPPOE_USERNAME }}
+  PPPOE_PASSWD: ${{ secrets.PPPOE_PASSWD }}
+  SCKEY: ${{ secrets.SCKEY }}
+  TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+  DOCKER_ID: ${{ secrets.DOCKER_ID }}
+  DOCKER_PASSWD: ${{ secrets.DOCKER_PASSWD }}
+  TZ: Asia/Shanghai
+  TARGET: ipq50xx_arm
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    name: Build IPQ50xx ARM (${{ github.event.inputs.custom_version || 'default' }})
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@main
+      with:
+        fetch-depth: 0
+
+    - name: 初始化环境变量
+      run: |
+        echo "开始构建 IPQ50xx ARM 固件..."
+        echo "构建参数："
+        echo "- 释放磁盘空间: ${{ github.event.inputs.free_up_disk }}"
+        echo "- 上传到 Release: ${{ github.event.inputs.upload_release }}"
+        echo "- 上传到 Artifacts: ${{ github.event.inputs.upload_artifact }}"
+        echo "- 上传到 WeTransfer: ${{ github.event.inputs.upload_wetransfer }}"
+        echo "- 自定义版本: ${{ github.event.inputs.custom_version }}"
+        echo "================================================="
+
+    - name: 设置目标架构
+      run: |
+        echo "ARCH=linux/arm" >> $GITHUB_ENV
+        echo "MTARGET=arm_cortex-a7_neon-vfpv4" >> $GITHUB_ENV
+
+    - name: 加载配置文件
+      run: |
+        source "${GITHUB_WORKSPACE}/devices/common/settings.ini"
+        if [ -f "devices/${{ env.TARGET }}/settings.ini" ]; then
+          source "${GITHUB_WORKSPACE}/devices/${{ env.TARGET }}/settings.ini"
+        fi
+
+        # 根据输入参数覆盖设置
+        if [ "${{ github.event.inputs.free_up_disk }}" == "true" ]; then
+          FREE_UP_DISK="true"
+        fi
+        if [ "${{ github.event.inputs.upload_release }}" == "true" ]; then
+          UPLOAD_FIRMWARE_FOR_RELEASE="true"
+        else
+          UPLOAD_FIRMWARE_FOR_RELEASE="false"
+        fi
+        if [ "${{ github.event.inputs.upload_artifact }}" == "true" ]; then
+          UPLOAD_FIRMWARE_FOR_ARTIFACT="true"
+        else
+          UPLOAD_FIRMWARE_FOR_ARTIFACT="false"
+        fi
+        if [ "${{ github.event.inputs.upload_wetransfer }}" == "true" ]; then
+          UPLOAD_FIRMWARE_TO_WETRANSFER="true"
+        else
+          UPLOAD_FIRMWARE_TO_WETRANSFER="false"
+        fi
+
+        echo "REPO_URL=${REPO_URL}" >> $GITHUB_ENV
+        echo "REPO_BRANCH=${REPO_BRANCH}" >> $GITHUB_ENV
+        echo "CONFIG_FILE=${CONFIG_FILE}" >> $GITHUB_ENV
+        echo "DIY_SH=${DIY_SH}" >> $GITHUB_ENV
+        echo "FREE_UP_DISK=${FREE_UP_DISK}" >> $GITHUB_ENV
+        echo "UPLOAD_BIN_DIR_FOR_ARTIFACT=${UPLOAD_BIN_DIR_FOR_ARTIFACT}" >> $GITHUB_ENV
+        echo "UPLOAD_FIRMWARE_FOR_ARTIFACT=${UPLOAD_FIRMWARE_FOR_ARTIFACT}" >> $GITHUB_ENV
+        echo "UPLOAD_FIRMWARE_FOR_RELEASE=${UPLOAD_FIRMWARE_FOR_RELEASE}" >> $GITHUB_ENV
+        echo "UPLOAD_FIRMWARE_TO_COWTRANSFER=${UPLOAD_FIRMWARE_TO_COWTRANSFER}" >> $GITHUB_ENV
+        echo "UPLOAD_FIRMWARE_TO_WETRANSFER=${UPLOAD_FIRMWARE_TO_WETRANSFER}" >> $GITHUB_ENV
+
+        sed -i "1a REPO_TOKEN=${{ secrets.TOKEN_KIDDIN9 }}" ${GITHUB_WORKSPACE}/devices/common/diy.sh
+        sed -i "1a TARGET=${{ env.TARGET }}" ${GITHUB_WORKSPACE}/devices/common/diy.sh
+
+    - name: 触发软件包更新
+      continue-on-error: true
+      run: |
+        echo "检查软件包更新..."
+        gitdate=$(curl -H "Authorization: token ${{ secrets.TOKEN_KIDDIN9 }}" -s "https://api.github.com/repos/kiddin9/kwrt-packages/actions/runs" | jq -r '.workflow_runs[0].created_at')
+        gitdate=$(date -d "$gitdate" +%s)
+        now=$(date -d "$(date)" +%s)
+        if [[ $(expr $gitdate + 120) < $now ]]; then
+          echo "触发软件包更新..."
+          curl -X POST https://api.github.com/repos/kiddin9/kwrt-packages/dispatches \
+            -H "Accept: application/vnd.github.everest-preview+json" \
+            -H "Authorization: token ${{ secrets.TOKEN_KIDDIN9 }}" \
+            --data '{"event_type": "update"}'
+          sleep 30
+        else
+          echo "软件包最近已更新，跳过"
+        fi
+
+    - name: 释放磁盘空间
+      if: github.event.inputs.free_up_disk == 'true'
+      run: |
+        echo "释放磁盘空间..."
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        sudo apt-get clean
+        docker system prune -af
+
+    - name: 安装依赖
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential clang flex g++ gawk gcc-multilib \
+          gettext git libncurses5-dev libssl-dev python3-distutils \
+          rsync unzip zlib1g-dev python3-pyelftools python3-setuptools \
+          python3-dev swig rsync
+
+    - name: 克隆源码
+      run: |
+        echo "克隆 OpenWrt 源码..."
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        cd openwrt
+
+        # 设置自定义版本号
+        if [ -n "${{ github.event.inputs.custom_version }}" ]; then
+          echo "${{ github.event.inputs.custom_version }}" > version
+          echo "${{ github.event.inputs.custom_version }}" > version.date
+        fi
+
+    - name: 更新和安装软件包
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: 加载配置文件
+      run: |
+        cd openwrt
+        cp "../devices/${{ env.TARGET }}/${CONFIG_FILE}" .config
+
+        # 添加自定义配置
+        cat >> .config << 'EOF'
+        CONFIG_TARGET_DEVICE_ipq50xx_arm_DEVICE_redmi_ax3000=y
+        CONFIG_TARGET_DEVICE_ipq50xx_arm_DEVICE_cmcc_rax3000q=y
+        CONFIG_TARGET_DEVICE_ipq50xx_arm_DEVICE_xiaomi_cr881x=y
+        EOF
+
+        make defconfig
+
+    - name: 下载软件包
+      run: |
+        cd openwrt
+        make download -j8
+
+    - name: 执行定制脚本
+      run: |
+        cd openwrt
+        chmod +x "../devices/common/${DIY_SH}"
+        chmod +x "../devices/${{ env.TARGET }}/${DIY_SH}"
+        ../devices/common/${DIY_SH}
+        ../devices/${{ env.TARGET }}/${DIY_SH}
+
+    - name: 编译固件
+      run: |
+        cd openwrt
+        echo -e "$(nproc) thread build IPQ50xx ARM firmware"
+        make -j$(nproc) || make -j1 || make -j1 V=s
+
+    - name: 清理文件
+      run: |
+        cd openwrt
+        rm -rf build_dir/target*
+        rm -rf build_dir/toolchain*
+        find . -name "*.ipk" -delete
+        find . -name " Packages*" -delete
+
+    - name: 上传到 WeTransfer
+      if: github.event.inputs.upload_wetransfer == 'true'
+      run: |
+        cd openwrt
+        wget -qO- "https://wetransfer.com/api/v4/transfers" \
+          -H "Content-Type: application/json" \
+          -H "x-api-key: ${{ secrets.WETRANSFER_API_KEY }}" \
+          --data-raw '{"message":"IPQ50xx ARM Firmware - $(date +%Y%m%d-%H%M%S)","files":[{"name":"kwrt-ipq50xx-arm-$(date +%Y%m%d-%H%M%S).tar","size":"'$(du -sb bin/targets/*/* | cut -f1)'"}]}' > wetransfer.json
+
+    - name: 上传固件到 Artifacts
+      if: github.event.inputs.upload_artifact == 'true'
+      uses: actions/upload-artifact@main
+      with:
+        name: kwrt-ipq50xx-arm-firmware
+        path: openwrt/bin/targets/
+
+    - name: 上传固件到 Release
+      if: github.event.inputs.upload_release == 'true'
+      uses: softprops/action-gh-release@main
+      with:
+        tag_name: ipq50xx-arm-$(date +%Y%m%d-%H%M%S)
+        body: |
+          ## IPQ50xx ARM 固件
+
+          ### 支持的设备
+          - Redmi AX3000
+          - 小米 CR880x (M79/M81 版本)
+          - 小米 CR881x
+          - CMCC RAX3000Q
+
+          ### 构建信息
+          - 构建时间: $(date)
+          - 提交: ${{ github.sha }}
+          - 内核版本: Linux 5.15 LTS
+
+          ### 注意事项
+          - 5G WiFi 160MHz 需要正确设置地区代码
+          - 该平台不支持 NSS 硬件加速
+        files: openwrt/bin/targets/*/*
+        draft: false
+        prerelease: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN_KIDDIN9 }}
+
+    - name: 构建完成通知
+      if: always()
+      run: |
+        echo "================================================="
+        echo "IPQ50xx ARM 固件构建完成！"
+        echo "构建状态: ${{ job.status }}"
+        echo "支持设备: Redmi AX3000, 小米 CR880x, CR881x, CMCC RAX3000Q"
+        echo "构建时间: $(date)"
+        echo "================================================="
