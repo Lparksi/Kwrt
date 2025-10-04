@@ -1,0 +1,38 @@
+# IPQ50xx ARM 最小化平台配置
+CONFIG_TARGET_ipq50xx=y
+CONFIG_TARGET_ipq50xx_arm=y
+CONFIG_TARGET_MULTI_PROFILE=y
+CONFIG_TARGET_ALL_PROFILES=y
+
+# 内核配置
+CONFIG_KERNEL_DEBUG_INFO=y
+
+# 基础网络支持
+CONFIG_PACKAGE_kmod-gpio-button-hotplug=y
+CONFIG_PACKAGE_uboot-envtools=y
+CONFIG_PACKAGE_swconfig=y
+
+# 基础 WiFi (不支持硬件特定功能)
+CONFIG_PACKAGE_kmod-ath11k=y
+CONFIG_PACKAGE_kmod-ath11k-ahb=y
+CONFIG_PACKAGE_wpad-basic-wolfssl=y
+
+# 基础工具包
+CONFIG_PACKAGE_ip-full=y
+CONFIG_PACKAGE_kmod-usb-net=y
+CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
+CONFIG_PACKAGE_kmod-usb-storage=y
+CONFIG_PACKAGE_kmod-fs-ext4=y
+CONFIG_PACKAGE_kmod-fs-vfat=y
+
+# 基础管理工具
+CONFIG_PACKAGE_htop=y
+CONFIG_PACKAGE_nano=y
+CONFIG_PACKAGE_wget=y
+CONFIG_PACKAGE_curl=y
+CONFIG_PACKAGE_automount=y
+
+# 构建配置
+CONFIG_IB=y
+CONFIG_SDK=y
+CONFIG_MAKE_TOOLCHAIN=y
