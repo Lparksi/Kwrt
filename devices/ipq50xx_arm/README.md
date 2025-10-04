@@ -36,7 +36,14 @@ ipq50xx_arm/
    openwrt-redmi-ax3000/target/linux/ipq50xx/patches/* → target/linux/ipq50xx/patches/
    ```
 
-3. **基础文件**：
+3. **WiFi 固件文件** (运行 `diy/4-wifi-firmware.sh` 后需要替换)：
+   ```
+   从原厂固件提取:
+   - board-redmi_ax3000.ipq5018 → package/firmware/ipq-wifi/src/
+   - board-redmi_ax3000.qcn6122 → package/firmware/ipq-wifi/src/
+   ```
+
+4. **基础文件**：
    ```
    openwrt-redmi-ax3000/target/linux/ipq50xx/base-files/* → target/linux/ipq50xx/base-files/
    ```
@@ -49,12 +56,15 @@ ipq50xx_arm/
 
 ### 特性支持
 
-- ✅ Boot 启动
-- ✅ 网络交换
-- ✅ CPU 以太网
+- ✅ Boot 启动 (支持双分区 OTA 更新)
+- ✅ 网络交换 (IPQ ESS 交换芯片)
+- ✅ CPU 以太网 (千兆网口)
+- ✅ LED 控制 (WAN 状态指示)
+- ✅ U-Boot 环境管理
+- ✅ WiFi 固件支持 (IPQ5018 + QCN6122)
 - ❌ NSS NAT (不支持)
-- ⚠️ 2.4G WiFi (无 NSS 卸载)
-- ⚠️ 5G WiFi (无 NSS 卸载，需要正确配置)
+- ⚠️ 2.4G WiFi (无 NSS 卸载，需要提取固件)
+- ⚠️ 5G WiFi (无 NSS 卸载，需要提取固件和正确配置)
 
 ### 构建配置
 
